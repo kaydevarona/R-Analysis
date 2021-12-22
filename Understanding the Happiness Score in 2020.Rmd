@@ -1,0 +1,374 @@
+---
+title: "Understanding the Happiness Score in 2020"
+author: "Prepared by Kayde Varona"
+date: "12/9/2021"
+output: pdf_document
+urlcolor: blue
+---
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = NA)
+```
+
+## I. Introduction
+
+
+2020 has been a challenging year, mainly because of the Covid-19. It affects everyone and posted economic instability, social distress, and emotional challenges worldwide. This project wants to understand what affects the world's happiness course during the pandemic, specifically during 2020. This study is inspired by the World Happiness Report 2021, where they compared happiness with government trust and covid related deaths. Click this link (https://worldhappiness.report/ed/2021/) for more information regarding this report.
+
+This project aims to understand the factors that affect the happiness score in 2020. This project focused mainly on answering three questions:
+
+- First, what are the factors that affect the happiness score in 2020? 
+- Second, is there a strong relationship between COVID factors and the happiness score?
+- Third, do countries with higher GDP per capita tend to have a higher happiness score for 2020?
+
+The results of the analysis shows that:
+
+- GDP per capita, social support, freedom to make life choices, perception to corruption and COVID-19 related deaths are affects the happiness score. 
+- There is a relationship between COVID-19 to the happiness score but it is not strong.
+- Countries with higher GDP have higher happiness scores compared to low GDP regions. 
+
+
+## II.	Data Sources and Variable Definitions 
+
+#### **a.	The significant variables used in this study are**
+
+-	**ladder score** – this is utilized as the dependent variable for this study. This is also known as the happiness score measured by subjective well-being, from the Gallup World Poll (GWP). The top ladder being 10 represents the "best possible" life and 0 as the worst.
+-	**log gdp per capita** – is the Gross Domestic Product per capita is countries' economic performance. It is to  compare average standard living between countries 
+-	**freedom** – or freedom to make life choices - this is the national average response to the GWP question to "Are you satisfied or dissatisfied with your freedom to choose what you do with your life?"
+-	**social support** – this is a 0 or 1 response to the GWP survey question "If you were in trouble, do you have relatives or friends you can count on to help you whenever you need them, or not?". This is computed as the national average. 
+-	**healthy life** – healthy life expectancies at birth from the World Health Organization
+-	**covid deaths** – Covid-19 deaths per 100,000 population in 2020
+-	**corruption** – also known as corruption perception –is from the GWP survey averaging the national response from business and government perception. 
+
+#### **b.	Two variables considered factors or characters for this project are:**
+
+-	**country** – this refers to 149 countries included in this study. Countries that had nulls are removed from the dataset
+-	**region** – the countries are grouped by areas, namely Western Europe, Central and Eastern Europe, Commonwealth of Independent States, Southeast Asia, South Asia, East Asia, Latin America and Caribbean, North America and ANZ, Middle East and North Africa, and Sub-Saharan Africa
+
+#### **c.	 Other variables are used in the model but not considered significant after the regression model are the following:**
+
+-	**generosity** – this is the national average response for the GWP survey question about donating money to the charity. 
+-	**gini index** – represents the gini coefficient of all countries – used to compare income inequalities of the countries
+-	**exposure index** – is one country's exposure to infections in other countries. It is the sum of all other countries' infections weighted by the inverse of the bilateral distance of their capital cities.
+
+## III.	Data Preparation
+
+There are going to be two parts of data preparation to answer the three main objectives of this project. The first part is for the hypothesis testing. The second part for the regression analysis. The characters are mutated and turned into factors. Prior to importing the csv file, the upper whisker column, lower whisker column, 
+
+```{r library}
+# load libraries
+
+library(tidyverse)
+library(readr)
+set.seed(1222)
+
+#importing the dataset
+
+happiness <- read_csv("happiness_data.csv", col_names =  TRUE)
+
+happiness %>% glimpse()
+```
+### **1.	Data Preparation for Hypothesis Testing:**
+
+```{r, echo=FALSE}
+# Mutating all the characters as factors
+happiness <- happiness %>% mutate_if(is.character, as.factor)
+
+#Creating a theme for the plots
+
+plot.theme <- theme(plot.title = element_text( face = "bold", size = (15)), 
+                 legend.title = element_text(colour = "darkseagreen4",  face = "bold.italic"), 
+                 legend.text = element_text(face = "italic", colour="darkseagreen4"), 
+                  axis.title = element_text(face = "bold", size = (10), colour = "darkseagreen4"),
+                  axis.text = element_text(colour = "darkolivegreen", size = (10)))
+```
+
+#### **Box Plot of the Happiness Score of Different Regions**
+
+
+The box plot shows that Western Europe has the highest median happiness score out of all the regions. Another interesting note is there is a big inequality in the happiness score in South Asia where in only 20% of the countries are considered relatively happy. In addition to that, even though the Latin America and Caribbean have an overall average happiness score, there are two countries that outliers and are far below the region's average. 
+
+```{r, echo=FALSE, fig.align = 'center',out.width="90%"}
+
+# Creating a boxplot grouped by region to see an overview of the ladder_score for each region
+happiness %>%
+ggplot(aes(region,ladder_score, fill = region)) +
+  geom_boxplot() +
+  scale_x_discrete(label=abbreviate) +
+  plot.theme +
+  labs(title = "Region's Boxplot") +
+  ylab("happiness")
+```
+#### **Scatterplot of the Relationship between GDP per Capita**
+
+
+The scatter plot shows that there is a positive relationship with GDP per capita and the happiness score, meaning as GDP per capita of a country increases, happiness aslo increases. Most of Western Europe countries have high GDP and high happiness scores. 
+
+
+```{r, echo=FALSE, fig.align = 'center', out.width= "90%"}
+
+# Creating a scatter plot of the relationship between log_gdp and ladder_score
+
+happiness %>%
+ggplot(aes( x = log_gdp, y = ladder_score, color = region)) +
+  geom_jitter(alpha = 0.5) +
+  plot.theme +
+  labs(title = "Relationship between GDP and Happiness") +
+  ylab("happiness")
+
+
+# Grouping the regions into two: high_gdp and low_gdp
+
+happiness_t_test_df <- happiness %>%
+  group_by(region) %>%
+  summarise(log_gdp_median = median(log_gdp), ladder_median = median(ladder_score)) %>%
+  arrange(desc(log_gdp_median))
+
+happiness_t_test_df 
+
+# Creating a new dataset with two numeric vectors
+
+a_region <- c(7.08,7.14,5.76, 6.08, 4.89) # high gdp
+b_region <- c(5.47, 5.99, 5.38, 4.93, 4.62) # low gdp
+
+# Creating a data frame
+
+region_data <- data.frame(
+  group = rep(c("high_gdp", "low_gdp"), each = 5),
+  ladder_score = c(a_region,  b_region) 
+  ) #ladder_score
+
+# Grouping the regions into two: high_gdp and low_gdp
+
+happiness_t_test_df <- happiness %>%
+  group_by(region) %>%
+  summarise(log_gdp_median = median(log_gdp), ladder_median = median(ladder_score)) %>%
+  arrange(desc(log_gdp_median))
+
+happiness_t_test_df 
+
+# Creating a new dataset with two numeric vectors
+
+a_region <- c(7.08,7.14,5.76, 6.08, 4.89) # high gdp
+b_region <- c(5.47, 5.99, 5.38, 4.93, 4.62) # low gdp
+
+# Creating a data frame
+
+region_data <- data.frame(
+  group = rep(c("high_gdp", "low_gdp"), each = 5),
+  ladder_score = c(a_region,  b_region) 
+  ) #ladder_score
+
+region_data %>% glimpse() 
+
+df_high_gdp <- region_data %>% filter(group =="high_gdp")
+df_low_gdp <- region_data %>% filter(group =="low_gdp")
+```
+
+#### **Normality Test**
+
+Performing a normality test to see if the two regions are normally distributed.
+
+
+The Shipiro-Wilk test shows that both High GDP and Low GDP group are normally distributed with p-values greater than 0.05 
+```{r}
+# Shapiro-Wilk normality test for high GDP region's ladder score
+cat("\n**** Regions with  High GDP ****")
+with(region_data, shapiro.test(ladder_score[group == "high_gdp"])) 
+
+# Shapiro-Wilk normality test for low GDP region's ladder score
+
+cat("\n**** Regions with  Low GDP ****")
+with(region_data, shapiro.test(ladder_score[group == "low_gdp"]))
+```
+
+#### **T- Testing**
+
+To answer the question if Low GDP countries have lower happiness score than High GDP countries, one-sided t-test is needed to check if this is true. 
+
+#### **The hypotheses are:**
+
+- Null Hypothesis: *low_gdp is less than or equal to high_gdp* 
+- Alternative Hypothesis: *low_gdp is greater than or high_gdp*
+```{r}
+cat("\n**** Low GDP  < High GDP ****")
+t.test(df_low_gdp$ladder_score, df_high_gdp$ladder_score, conf.level = 0.95, alternative = "less")
+```
+#### **Results and Interpretation**
+
+
+The result of the One Sided T-Test shows that countries that have lower GDP tends to have a lower happiness score than  countries with high GDP. 
+
+- *p-value* - the p-value = 0.05331 > 0.05 it fails to reject the null hypothesis that low GDP < high GDP
+- *confidence interval* - the lower end of the confidence interval is negative infinity and the upper end is 0.022. The confidence interval contains 0, failing to reject the null hypothesis.
+
+
+### **2.	Data Preparation for Regression:**
+
+
+#### **Visualizing Ladder Score in Relation to the Independent Variables**
+
+The following graphs plots the ladder score to various independent variables to see their relationship. GDP per Capita, freedom, corruption, social support, Covid deaths shows a direct relationship between ladder score, while corruption shows an indirect relationship between the label/dependent variable.
+
+```{r, echo=FALSE, message=FALSE, fig.align = 'center',out.width="90%"}
+# Scatter plot of ladder score to the x variables
+# Set y to ladder_score
+
+plot.scatter = function(col, df){
+  plot = ggplot(df, aes_string(x = col, y = "ladder_score")) + 
+    geom_point() + 
+    geom_smooth(size = 1, color = "darkolivegreen", method="loess") + 
+    labs(title=str_c("Relationship Between ", col, " and ladder score"),
+         x=col, y="ladder score") +
+    plot.theme
+  
+  # Print the plot
+  plot %>% print()
+}
+
+# Independent variables
+cols = c("log_gdp", "freedom", "corruption", "social_support", "covid_deaths")
+
+# Looping the x variables into the function
+cols %>% walk(plot.scatter, happiness)
+```
+
+#### **Splitting the dataset into testing and training**
+
+The dataset is split between 70/30. 70% of the data is used for testing, and 30% is for testing, and the seed is set at 1222.
+```{r results = 'hide'}
+# count the rows in preparation of splitting the data set into two
+
+count_rows = nrow(happiness)
+count_rows
+
+
+# splitting the dataset into two: 70% training, 30% testing
+
+set.seed(1222)
+train_id <- sample(1:count_rows, 0.7 * count_rows)
+train_id
+
+
+train_data = happiness[train_id,]
+test_data = happiness[-train_id,]
+
+train_data %>% glimpse()
+test_data %>% glimpse()
+
+```
+## IV. Modeling
+
+#### **a. Training the Models**
+
+
+This first model has variables that are not significant which means that it is an overfitting model. To fix this the insignificant variables should be dropped
+
+```{r}
+# Creating a linear model with all the variables 
+# This first model has variables that are not significant 
+
+happiness_test_mod <- lm(ladder_score ~log_gdp + social_support +  healthy_life + freedom + generosity + corruption + exposure_index + covid_deaths 
+                         + gini_index, data = train_data)
+happiness_test_mod %>% summary()
+
+```
+#### **a. Testing Model 1**
+
+###### *ladder_score =  0.25log_gdp + 2.83social_support + 1.93freedom  - 1.20corruption  + covid_deaths -1* 
+
+The first model shows the ladder score with a COVID related deaths. 
+
+
+This model shows that **ladder_score* is significantly dependent on *log_gdp, social_support, freedom, corruption  and covid_deaths*. 
+
+
+These independent variables are accepted when p-value < 0.05. 
+
+
+The model also shows the 99% of the variances was reduces as shown by the adjusted R- squared.
+
+
+The F-static is high at 2284 which represents how model is explaining the variables.
+
+```{r}
+# Dropping all the insignificant variables 
+# All the variables in this model are accepted when alpha is set at 0.05
+happiness_test_mod1 <- lm(ladder_score ~ log_gdp + social_support + freedom  + corruption  + covid_deaths -1
+                         , data = train_data)
+happiness_test_mod1 %>% summary()
+happiness_test_mod1 %>% confint()
+
+```
+#### **Training Model 2**
+
+###### *ladder_score =  0.26log_gdp + 2.37social_support +  0.02healthy_life + 2.34freedom + 1*
+
+The second model shows the regression model without any COVID related variables, ladder score is significantly dependent on log gdp and 
+
+
+This model shows that **ladder_score* is significantly dependent on *log_gdp, social_support, healthy_life* and *freedom* at p value < 0.05
+
+```{r}
+# Formulating the second happiness model
+# This model doesn't have any COVID related variables
+
+happiness_test_mod2 <- lm(ladder_score ~log_gdp + social_support +  healthy_life + freedom 
+                         , data = train_data)
+happiness_test_mod2 %>% summary()
+happiness_test_mod2 %>% confint()
+
+
+```
+#### **b. Testing the Models**
+
+
+##### Model 1 Prediction Score and Error
+
+A prediction column is included to test the model. In addition to that, an error equation helps identify the residul in the model. The error in model one is equal to 0.57
+
+
+```{r}
+# Model 1
+
+test_data$prediction <-  predict(happiness_test_mod1, newdata = test_data)
+test_data %>% select(ladder_score, prediction) %>% print()
+error1 <- sqrt(sum((test_data$ladder_score - test_data$prediction)^2)/nrow(test_data))
+paste("Model 1 Error =", error1)
+
+```
+
+##### Model 2 Prediction Score and Error
+
+The prediction column in model two is computed the same as the first model. The result of the error for model two is equal to 0.59
+
+
+```{r}
+# Model 2
+
+test_data$prediction <-  predict(happiness_test_mod2, newdata = test_data)
+test_data %>% select(ladder_score, prediction) %>% print()
+
+error2 <-  sqrt(sum((test_data$ladder_score - test_data$prediction)^2)/nrow(test_data))
+
+paste("Model 2 Error =", error2)
+
+```
+#### **c. Comparing and Evaluating the model**
+
+- Model 1 $ladderscore =  0.25*log\_gdp + 2.83*social\_support + 1.93*freedom  - 1.20*corruption  + covid\_deaths -1$ 
+- Model 2 $ladder_score =  0.26*log\_gdp + 2.37*social\_support +  0.02*healthy\_life + 2.34*freedom + 1$
+
+Both models have almost have the same variables with the exception of a variable gauging COVID 19 related deaths are added to the first model.Although COVID deaths were added to model one, it did'nt made a lot of impact to the ladder score. This is explained by the almost zero value in the estimate. In addition to that, the the variable healthy life is present on the second model, which when compared to the first model it is not considered significant. It is safe to assume that without any COVID related variables in the model, a healthy life has an implication on the happiness score. In addition, the intercept in model one is insignificant, compared to model two. When comparing the errors, model one has a smaller error at 0.57 compared to model two's 0.59. 
+
+
+## **IV. Results and Conclusions**
+
+Understanding the happiness scores of 149 countries for 2020, has provided this study very interesting insights. It is very evident than the pandemic has changed the day-to-day life and challenged everyone in the world. It is true the COVID-19 has an effect in 2020, but that effect is very low compared to the other factors that affects people’s happiness. What countries value the most is the social support that they can get from their friends and families during these difficult times. In addition to that, countries value their freedom to make their own decision to be happy. This is a very interesting because this was the time period were there are a lot of restrictions and mandatory lock downs took place. The perception to corruption is also one of the factors that affects happiness. This perception covers not only for the government but for business. Relying to the fact the government is making the right decisions during the unpresedented times of is very important. Lastly, the GDP per capita is also evident in increasing a countries’ happiness. How big the impact is to the happiness score is represented by the estimates in the regression.
+
+
+Overall, regions with high GDP namely, North America, East Asia, Middle East, North Africa and all of Europe have a higher happiness score than regions with lower GDP. Out of all the regions, countries in Western Europe have the happiest people in the world. 

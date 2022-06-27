@@ -1,0 +1,401 @@
+---
+title: "Predicting Student's Adaptability to Online Learning"
+author: "Kayde Varona"
+date: '2022-06-16'
+output:
+  pdf_document: default
+
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r include=FALSE}
+knitr::opts_chunk$set(comment = NA)
+```
+
+
+```{r, echo=FALSE, results='hide'}
+# set up wd 
+wd = "/Users/kaydevarona/Library/Mobile Documents/com~apple~CloudDocs/DATAANA330/Final Project"
+setwd(wd)
+```
+
+```{r,  echo=FALSE, message=FALSE, warning=FALSE}
+# load libraries
+library(tidyverse)
+library(knitr)
+library(caret)
+library(randomForest)
+library(rpart.plot)
+library(pROC)
+```
+
+```{r, results='hide', echo=FALSE, message=FALSE}
+# importing the dataset
+
+adaptability = read_csv("adaptability.csv", col_names =  TRUE)
+
+# summarizing the dataset
+summary(adaptability)
+```
+
+```{r, results='hide', echo=FALSE}
+# convert to factors
+adaptability = adaptability %>% mutate_if(is.character,as.factor)
+
+# add levels to the adaptability level
+adaptability$Adaptability_Level = factor(adaptability$Adaptability_Level, levels = c("High", "Moderate", "Low"))
+```
+
+## I. Introduction
+
+Many drastic changes have happened to us every since COVID hit. One of the many changes that education institutions adopt is online learning. Most schools worldwide shifted from the traditional classroom setting to an online environment. Nearly every student in every grade level has some form of an online class that they took. It is essential to know how students adapt to change and what challenges students face in an online environment. 
+
+
+**Objectives**
+
+* The main objective of this paper is to predict the level of adaptability of a student using different machine learning techniques. 
+* Second is to identify a group of students more likely to adapt seamlessly to an online environment. 
+* Lastly is to point out factors the student needs to succeed in online learning. 
+
+
+**Results**
+
+* The best model identified by the accuracy and kappa is the Bagged Model
+* Groups that are more lily to adapt to online environment are students ages 21-25 at University Level. Students with better resources such as better network/internet connectivity and financial condition are more likely to succeed.
+* Age, class duration, location (urban or rural area), network type, and educational level are the most important factors that should be taken into consideration for students to succeed in an online environment.
+
+
+
+## II. Data Sources and Variable Definitions
+
+The data utilized in this project is from the "Students’ Adaptability Level Prediction in Online Education using Machine Learning Approaches" paper published in 2021. This dataset is imported from Kaggle. The authors of the said paper used online and offline surveys collected from December 10, 2020, to February 5, 2021, in Bangladesh. For more information regarding this paper, please click here https://ieeexplore.ieee.org/document/9579741
+
+One limitation of the data is that it is imbalanced. Out of 1205 observations, there are more students with low and moderate adaptability at 480 and 625 respectively than the positive outcome, which is high at 100 observations
+
+```{r, echo=FALSE, results='asis'}
+table(adaptability$Adaptability_Level)
+```
+
+
+### **The variables used in this study are**
+
+(@) Gender: Girl (0), Boy (1)
+(@) Age:  Age group  Around 1 to 5 (0), 6 to 10 (1), 11 to 15 (2),16 to 20 (3), 21 to 25 (4), 26 to 30 (5)    
+(@) Education Level: School (0), College (1), University (2)
+(@) Institutional Type: Non Government (0), Government(1)                                                            
+(@) IT Student : No (0), Yes (1)                                                                                      
+(@) Location: Is the educational institution located in the city/town No (0), Yes (1)
+(@) Load-Shedding: Low (0), High (1)
+(@) Financial Condition: Poor (0), Mid (1), Rich (2)
+(@) Internet Type: Mobile Data (0), Wifi (1)
+(@) Network Type:  2G (0), 3G (1), 4G (2)
+(@) Class Duration:  0 (0), 1 to 3 Hours (1),3 to 6 Hours (2)
+(@) Self LMS: No (0), Yes (1)
+(@) Device: Most used device Tab (0), Mobile (1), Computer (2)
+(@) Adaptability Level: Low (0), Moderate (1), High (2)   
+
+
+
+
+## III. Data Exploration                                                                                                                                     
+To get more insight regarding this dataset, exploratory data analysis is utilized using ggplot2. 
+
+This paper focused on visualizing the adaptability level using different groups of students.
+
+
+The first graph shows the adaptability level of different age groups. Students ages 1 to 5 do not adapt to online learning. Students start having high adapting at the age of 6-10. Most of the students in this study are ages 21-25, most of whom have moderate adaptability.
+
+```{r, echo=FALSE, fig.align = 'center',out.width="70%"}
+# Age Group Visualization
+
+ggplot(adaptability, aes(Age, fill = Adaptability_Level)) +
+  geom_bar() + scale_fill_manual(values = c("#247881", "#FFAD60", "#D9534F" ),name="Adaptability") +
+  labs(title = "1. Adaptability Level by Age Group")+
+  ylab("Number of students") + 
+  xlab("Age Range")
+  
+
+```
+
+The second graph shows the proportion of educational institution level.  Most of the students in the dataset are either in school or university. 
+
+
+```{r, echo=FALSE, fig.align = 'center',out.width="70%"}
+# Educational Level Visualization
+
+edu_count_table = as.data.frame(table(adaptability$Education_Level, adaptability$Adaptability_Level))
+edu_count_table$Prob = edu_count_table$Freq / sum(edu_count_table$Freq)
+colnames(edu_count_table) = c("Edu", "Adaptability","Freq", "Prob" )
+
+
+ggplot(data=edu_count_table, aes(x="", y=Prob, fill = Edu)) +
+  geom_bar(width = 1, stat = "identity") + coord_polar("y", start=0) + 
+  scale_fill_manual(values = c("#557B83", "#39AEA9", "#A2D5AB"), name="Education Level") +
+  labs(title = "2.a. Pie Chart of Eduction Level", y = "Probability") 
+
+
+```
+
+Looking more at the proportion of educational level, on the third graph, students on the college level have overall the lowest adaptability level. The groups with the highest adaptability scores are groups of students in University. Even though university students have the highest adaptability overall, 40% are still considered with low adaptability scores. 
+
+
+```{r, echo=FALSE, fig.align = 'center',out.width="70%"}
+# Educational Level visualization
+
+ggplot(edu_count_table, aes(x = Edu, y = Freq, fill = Adaptability)) +
+  geom_col(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values = c("#247881", "#FFAD60", "#D9534F" )) +
+  labs(title = "2.b. Adaptability per Educational Level") 
+  
+```
+
+The graph number 3 shows adaptability levels by financial condition; financial conditions are divided into three groups, poor, middle class, and rich. Most of the students in the dataset are considered middle class, followed by poor, and lastly, rich. Students with better financial conditions are more likely to have higher adaptability.
+
+
+```{r, echo=FALSE, fig.align = 'center',out.width="70%"}
+# financial condition 
+adaptability$Financial_Condition = factor(adaptability$Financial_Condition, levels = c("Poor", "Mid", "Rich"))
+
+ggplot(adaptability, aes(Financial_Condition, fill = Adaptability_Level)) +
+  geom_bar() + scale_fill_manual(values = c("#247881", "#FFAD60", "#D9534F" ),name="Adaptability") +
+  labs(title = "3. Adaptability Level by Financial Condition") +
+  ylab("Number of students") + 
+  xlab("Financial Condition")
+```
+ 
+The fourth graph shows the network types available in Bangladesh, 4G being the fastest. Despite having internet connection issues in the rural areas. The majority of the students either have 3G or 4G. Students with higher network connectivity tend to be more adaptive than those only having 2G connectivity.
+
+```{r, echo=FALSE, fig.align = 'center',out.width="70%"}
+# network type
+
+ggplot(adaptability, aes(Network_Type, fill = Adaptability_Level)) +
+  geom_bar() + scale_fill_manual(values = c("#247881", "#FFAD60", "#D9534F" ),name="Adaptability") +
+  labs(title = "4. Adaptability Level by Network Type") +
+  ylab("Number of students") + 
+  xlab("Network Type")
+```
+
+The last graph shows the different class duration; the optimum number of hours when students have a high adaptability level is a class with a one to three-hour period. Below that, they mostly have low adaptability. 
+
+```{r, echo=FALSE, fig.align = 'center',out.width="70%"}
+# class duration visualization
+
+ggplot(adaptability, aes(Class_Duration, fill = Adaptability_Level)) +
+  geom_bar() + scale_fill_manual(values = c("#247881", "#FFAD60", "#D9534F" ),name="Adaptability") +
+  labs(title = "f. Adaptability Level by Class Duration") +
+  ylab("Number of students") + 
+  xlab("Class Duration")
+```
+
+## III. Data Preparation                                                                                                                                     
+The dataset is converted to a data frame to prepare the data for analysis. The values are also binarized and converted into factors. All the variables in this study are factors. The data set is divided into training and testing sets, 80% used for training and 20% for testing. The outcome variable is also removed from the training set.
+
+There are three different Machine Learning algorithms used to predict the student’s adaptability level. The first model used to indicate adaptability is a **Decision Tree Model**. This model is used because it is effective in categorizing the dataset. The second model used is the **Bagged Model**. This model is utilized to improve the model accuracy and reduce overfitting. The final model that is used is a **Random Forest Model**. This model is used because it is good with unbalanced data like the adaptability scores. Utilizing the random forest model will reduce the variance of the decision trees. The accuracy and kappa are analyzed to determine the best model. 
+
+
+```{r, echo=FALSE, results='hide', message=FALSE}
+
+# import dataset for classification analysis
+
+al = read_csv("adaptability_cl.csv", col_names =  TRUE)
+
+head(al)
+```
+
+```{r, echo=FALSE, results='hide'}
+# preparing the dataset 
+al = al %>% mutate_if(is.double,as.factor)
+glimpse(al)
+
+# change from tibble to df
+al = data.frame(al)
+
+# check the conversion
+class(al)
+```
+
+**Summary of the Data**
+
+```{r, echo=FALSE}
+# summarize data
+summary(al)
+```
+
+```{r train test split,  echo=FALSE, results='hide'}
+# set seed
+
+set.seed(1234)
+
+#splitting the dataset 80/20
+in_train = createDataPartition(y = al$Adaptability_Level, p = 0.80, list = FALSE)
+al_train = al[in_train, ]
+al_test = al[-in_train, ]
+
+#training set without the target variable
+training_set = select(al_train, -Adaptability_Level)
+```
+
+## IV. Results 
+
+
+### Decision Tree Model Analysis
+
+```{r, echo=FALSE, results='hide'}
+# tree model 
+tree_model = train(y = al_train$Adaptability_Level,
+                   x = training_set, method = "rpart")
+```
+
+**a. CART Results**
+
+```{r, echo=FALSE}
+# view the output from train
+tree_model
+
+# view the final model
+tree_model$finalModel
+```
+
+**b. Decision Tree Plot**
+
+The first leaf of the decision tree shows that when class duration is less than an hour (class duration = 0), 12% of that data is composed of low adapters; otherwise, they are moredate level of adaptability. The following boundary/ leaf is set: if the class is more than 1 hour, the financial condition is considered. If the student is rich ( financial condition = 2), they are more likely to be very adaptive to an online setting. This may be the case because they have more resources such as better internet connectivity, faster computers, and alike. If they are part of a low median income, the institution type, whether they are in a private school (0) or public school (1), is taken into account. When the institution is private, 21% of our students with low adaptability level, and the following boundary is distinction after that is the student's gender. 59% of the students from public schools are moderately adaptive to online learning.
+
+
+```{r, echo=FALSE, fig.align = 'center',out.width="80%"}
+# plotting the decision tree
+
+rpart.plot(tree_model$finalModel)
+```
+
+
+**c. Decision Tree Important Variables: **
+
+The important variables identified by the decision tree are class duration, institution type, location financial condition, age network type, gender and education level. 
+
+```{r, echo=FALSE, fig.align = 'center',out.width="80%"}
+# plotting the important variables
+
+plot(varImp(tree_model))
+```
+
+
+**d. Decision Tree Confusion Matrix**
+
+The Decision Tree's accuracy is at 70.12% at 0.4315 kappa. 
+
+```{r, echo=FALSE}
+# predicting the model
+tree_predictions = predict(tree_model, newdata = al_test)
+
+# confusion matrix
+
+confusionMatrix(tree_predictions, al_test$Adaptability_Level)
+```
+
+### Bagged Model Analysis
+
+```{r, results='hide', echo=FALSE}
+# bagged model
+
+bagged_model = train(y = al_train$Adaptability_Level,
+                     x = training_set, method = "treebag")
+```
+
+#### Bagged Model Results
+
+The bagged models show that ***age, class duration, location, network type, and educational level*** are the top five determining factors of adaptability level. This model has 92.53% accuracy with 0.87 kappas. The bagged model is better at predicting if the student has low adaptability with an overall higher specificity ranging from 92% to 99%. The sensitivity for the model is 90% for Low, 94% for Moderate, and 90% for High.
+
+**a. Bagged Model Important Variables**
+
+```{r, echo=FALSE, fig.align = 'center',out.width="80%"}
+# check the feature importances
+
+plot(varImp(bagged_model))
+```
+
+**b. Bagged Model Confusion Matrix**
+
+```{r,  echo=FALSE}
+#predict the model
+bagged_predictions = predict(bagged_model, al_test)
+
+#confusion matrix
+confusionMatrix(bagged_predictions, al_test$Adaptability_Level)
+
+```
+
+
+### Random Forest Model Anlysis
+
+```{r, echo=FALSE}
+# training the model
+
+rf_model = train(y = al_train$Adaptability_Level,
+                 x = training_set, method = "rf", prox = TRUE,
+                 verbose = TRUE)
+```
+
+#### Random Forest Model Results
+
+The random forest model shows that the ***duration of the class, age group, financial condition, gender, and network type*** are among the most important variables for this model. The number of predictors used for the model is 13. Looking at the confusion matrix, the overall accuracy of the model is 91.29% with a kappa of 0.84. Like the bagged model, the specificity range is greater than the sensitivity. 
+
+**a. Random Forest Optimal Number of Predictors**
+
+The optimal number of predictors is 13. This is when the accuracy is at the highest.
+
+```{r, echo=FALSE, fig.align = 'center',out.width="80%"}
+# getting optimal predictors 
+
+plot(rf_model)
+
+rf_model
+```
+
+**b. Random Forest Model Important Variables**
+
+```{r, echo=FALSE, fig.align = 'center',out.width="80%"}
+#plotting important variables
+
+plot(varImp(rf_model))
+```
+
+**c. Random Forest Model Confusion Matrix**
+
+```{r,  echo=FALSE}
+# predict
+rf_predictions = predict(rf_model, al_test)
+
+# confusion matrix
+confusionMatrix(rf_predictions, al_test$Adaptability_Level)
+```
+
+## V. Conclusions and Recommendations
+```{r, echo=FALSE, results='hide'}
+# plotting all the results
+results = resamples(list(tree = tree_model,
+                         bagged = bagged_model,
+                         random = rf_model))
+
+summary(results)
+```
+
+
+```{r, echo=FALSE, fig.align = 'center',out.width="80%"}
+
+# plotting all the results
+dotplot(results)
+
+```
+
+The best model is the **Bagged Model**  with the highest accuracy at **92.53%**, compared to only 91.29% for random forest and 70.12% for Simple Tree Model. The students with a higher chance of having high adaptability levels are those aged 21 to 25 and are at University. Students with better resources, such as having a better network type and financial income, are more likely to have better adaptability. The decision-makers of the educational institutions consider the students' age group when it comes to implementing an online learning environment. Younger students need one-on-one physical interaction with their teachers or instructors to be effective in school as they do not adapt online. They should also consider the class's length or duration since it has been proven that this is a critical factor across different models. They should also ensure that the students have access to a reliable network.   
+
+**Citation & Reference**
+
+M. Hasan Suzan, N. A. Samrin, A. A. Biswas and A. Pramanik, "Students' Adaptability Level Prediction in Online Education using Machine Learning Approaches," 2021 12th International Conference on Computing Communication and Networking Technologies (ICCCNT), 2021, pp. 1-7, doi: 10.1109/ICCCNT51525.2021.9579741.
+
+

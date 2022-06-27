@@ -5,3 +5,4 @@ This is a compilation of projects and case studies that I did through out my dat
 ## Contents
 * Adventure Works Analysis
 * Undestanding the Happiness Score in 2020
+* Predicting Student's Adaptability to Online Learning
